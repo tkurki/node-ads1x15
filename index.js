@@ -266,9 +266,13 @@ ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps) {
 // The pga must be given in mV, see page 13 for the supported values.
 
 ads1x15.prototype.readADCDifferential = function(chP, chN, pga, sps, callback) {
-
   var self = this;
-  if (!self.busy) {
+
+  return new Promise(function(resolve, reject) {
+    if (self.busy) {
+      reject("Adc is busy");
+      return;
+    }
     self.busy = true;
     //set defaults if not provided
     if (!chP)
@@ -298,7 +302,8 @@ ads1x15.prototype.readADCDifferential = function(chP, chN, pga, sps, callback) {
     } else {
       self.busy = false;
       console.log("ADS1x15: Invalid channels specified");
-      callback("ADS1x15: Invalid channels specified");
+      reject("ADS1x15: Invalid channels specified");
+      return;
     }
 
     // Set sample per seconds, defaults to 250sps
@@ -309,7 +314,8 @@ ads1x15.prototype.readADCDifferential = function(chP, chN, pga, sps, callback) {
     } else {
       if (!(spsADS1115[sps])) {
         self.busy = false;
-        callback("ADS1x15: Invalid pga specified");
+        reject("ADS1x15: Invalid pga specified");
+        return;
       } else {
         config |= spsADS1115[sps];
       }
@@ -317,7 +323,8 @@ ads1x15.prototype.readADCDifferential = function(chP, chN, pga, sps, callback) {
     // Set PGA/voltage range, defaults to +-6.144V
     if (!(pgaADS1x15[pga])) {
       self.busy = false;
-      callback("ADS1x15: Invalid pga specified");
+      reject("ADS1x15: Invalid pga specified");
+      return;
     } else {
       config |= pgaADS1x15[pga];
       this.pga = pga;
@@ -329,7 +336,8 @@ ads1x15.prototype.readADCDifferential = function(chP, chN, pga, sps, callback) {
     self.wire.writeBytes(ADS1015_REG_POINTER_CONFIG, bytes, function(err) {
       if (err) {
         self.busy = false;
-        callback("We've got an Error, Lance Constable Carrot!: " + err.toString());
+        reject(err.toString());
+        return;
       }
     });
     // Wait for the ADC conversion to complete
@@ -340,11 +348,15 @@ ads1x15.prototype.readADCDifferential = function(chP, chN, pga, sps, callback) {
 
     setTimeout(function() {
       self.wire.readBytes(ADS1015_REG_POINTER_CONVERT, 2, function(err, res) {
+        if (err) {
+          reject(err);
+          return;
+        }
         if (self.ic == IC_ADS1015) {
           // Shift right 4 bits for the 12-bit ADS1015 and convert to mV
           var data = (((res[0] << 8) | (res[1] & 0xFF)) >> 4) * pga / 2048.0;
           self.busy = false;
-          callback(null, data);
+          resolve(data);
         } else {
           // Return a mV value for the ADS1115
           // (Take signed values into account as well)
@@ -356,13 +368,11 @@ ads1x15.prototype.readADCDifferential = function(chP, chN, pga, sps, callback) {
             data = ((res[0] << 8) | (res[1])) * pga / 32768.0;
           }
           self.busy = false;
-          callback(null, data);
+          resolve(data);
         }
       });
     }, delay);
-  } else {
-    callback("ADC is busy...");
-  }
+  })
 }
 
 
@@ -372,13 +382,13 @@ ads1x15.prototype.readADCDifferential = function(chP, chN, pga, sps, callback) {
 // see data sheet page 14 for more info.
 // The pga must be given in mV, see page 13 for the supported values.
 
-ads1x15.prototype.readADCDifferential01 = function(pga, sps, callback) {
+ads1x15.prototype.readADCDifferential01 = function(pga, sps) {
   if (!pga)
     pga = 6144;
   if (!sps)
     sps = 250;
 
-  return this.readADCDifferential(0, 1, pga, sps, callback);
+  return this.readADCDifferential(0, 1, pga, sps);
 }
 
 
@@ -388,12 +398,12 @@ ads1x15.prototype.readADCDifferential01 = function(pga, sps, callback) {
 // see data sheet page 14 for more info.
 // The pga must be given in mV, see page 13 for the supported values.
 
-ads1x15.prototype.readADCDifferential03 = function(pga, sps, callback) {
+ads1x15.prototype.readADCDifferential03 = function(pga, sps) {
   if (!pga)
     pga = 6144;
   if (!sps)
     sps = 250;
-  return this.readADCDifferential(0, 3, pga, sps, callback);
+  return this.readADCDifferential(0, 3, pga, sps);
 }
 
 
@@ -403,13 +413,13 @@ ads1x15.prototype.readADCDifferential03 = function(pga, sps, callback) {
 // see data sheet page 14 for more info.
 // The pga must be given in mV, see page 13 for the supported values.
 
-ads1x15.prototype.readADCDifferential13 = function(pga, sps, callback) {
+ads1x15.prototype.readADCDifferential13 = function(pga, sps) {
   if (!pga)
     pga = 6144;
   if (!sps)
     sps = 250;
 
-  return this.readADCDifferential(1, 3, pga, sps, callback);
+  return this.readADCDifferential(1, 3, pga, sps);
 }
 
 
@@ -419,13 +429,13 @@ ads1x15.prototype.readADCDifferential13 = function(pga, sps, callback) {
 // see data sheet page 14 for more info.
 // The pga must be given in mV, see page 13 for the supported values.
 
-ads1x15.prototype.readADCDifferential23 = function(pga, sps, callback) {
+ads1x15.prototype.readADCDifferential23 = function(pga, sps) {
   if (!pga)
     pga = 6144;
   if (!sps)
     sps = 250;
 
-  return this.readADCDifferential(2, 3, pga, sps, callback);
+  return this.readADCDifferential(2, 3, pga, sps);
 }
 
 
@@ -436,7 +446,7 @@ ads1x15.prototype.readADCDifferential23 = function(pga, sps, callback) {
 // Use getLastConversionResults() to read the next values and
 // stopContinuousConversion() to stop converting.
 
-ads1x15.prototype.startContinuousConversion = function(channel, pga, sps, callback) {
+ads1x15.prototype.startContinuousConversion = function(channel, pga, sps, callbac) {
   var self = this;
   if (!self.busy) {
     self.busy = true;
