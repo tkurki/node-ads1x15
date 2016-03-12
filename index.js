@@ -1,6 +1,7 @@
 // javascript/node  rewrite of the Adafruit ads1x15 python library...
 var i2c = require('i2c');
 var async = require('async');
+var Promise = require('bluebird');
 
 // chip
 
@@ -135,10 +136,14 @@ function ads1x15(ic, address) {
 // The pga must be given in mV, see page 13 for the supported values.
 
 
-ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps, callback) {
-
+ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps) {
   var self = this;
-  if (!self.busy) {
+
+  return new Promise(function(resolve, reject) {
+    if (self.busy) {
+      reject("ADC is busy");
+      return;
+    }
     self.busy = true;
     if (!channel)
       channel = 0;
@@ -149,7 +154,8 @@ ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps, callback) {
 
     if (channel > 3 || channel < 0) {
       self.busy = false;
-      callback("Error: Channel must be between 0 and 3");
+      reject("Error: Channel must be between 0 and 3");
+      return;
     }
 
     // Disable comparator, Non-latching, Alert/Rdy active low
@@ -164,11 +170,15 @@ ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps, callback) {
     if (self.ic == IC_ADS1015) {
       if (spsADS1015[sps]) {
         config |= spsADS1015[sps];
-      } else callback("ADS1x15: Invalid sps specified");
+      } else {
+        reject("ADS1x15: Invalid sps specified");
+        return;
+      }
     } else {
       if (!(spsADS1115[sps])) {
         self.busy = false;
-        callback("ADS1x15: Invalid sps specified");
+        reject("ADS1x15: Invalid sps specified");
+        return;
       } else {
         config |= spsADS1115[sps];
       }
@@ -176,7 +186,8 @@ ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps, callback) {
     // Set PGA/voltage range, defaults to +-6.144V
     if (!(pgaADS1x15[pga])) {
       self.busy = false;
-      callback("ADS1x15: Invalid pga specified");
+      reject("ADS1x15: Invalid pga specified");
+      return;
     } else {
       config |= pgaADS1x15[pga];
     }
@@ -202,7 +213,8 @@ ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps, callback) {
       if (err) {
         self.busy = false;
         console.log("We've got an Error, Lance Constable Carrot!: " + err.toString());
-        callback(err);
+        reject(err);
+        return;
       }
 
       // Wait for the ADC conversion to complete
@@ -215,7 +227,8 @@ ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps, callback) {
           if (err) {
             self.busy = false;
             console.log("We've got an Error, Lance Constable Carrot!: " + err.toString());
-            callback(err);
+            reject(err);
+            return;
           }
           var data = -0.1;
           if (self.ic == IC_ADS1015) {
@@ -224,7 +237,7 @@ ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps, callback) {
 
             var data = (((res[0] << 8) | (res[1] & 0xFF)) >> 4) * self.pga / 2048.0;
             self.busy = false;
-            callback(null, data);
+            resolve(data);
           } else {
             // Return a mV value for the ADS1115
             // (Take signed values into account as well)
@@ -236,16 +249,13 @@ ads1x15.prototype.readADCSingleEnded = function(channel, pga, sps, callback) {
               data = ((res[0] << 8) | (res[1])) * pga / 32768.0;
             }
             self.busy = false;
-            callback(null, data);
+            resolve(data);
           }
         });
       }, delay);
 
     });
-  } else {
-    callback("ADC is busy...");
-  }
-
+  })
 }
 
 
