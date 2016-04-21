@@ -1,6 +1,5 @@
 // javascript/node  rewrite of the Adafruit ads1x15 python library...
-var i2c = require('i2c');
-var async = require('async');
+var i2c = require('./i2c');
 var Promise = require('bluebird');
 
 // chip
